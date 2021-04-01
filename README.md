@@ -224,8 +224,8 @@ vim servers/client01.cfg
 Change the IP address and the hostname with your own and paste the configuration into it.
 
 
-# Ubuntu Host configuration file1
 ```shell
+# Ubuntu Host configuration
 define host {
         use                          linux-server
         host_name                    client01
@@ -334,19 +334,139 @@ Now restart the Nagios Server
 ```shell
 systemctl restart nagios
 ```
-## What's included
+## Nagios-Plugins
 
-Some text
+[Nagios-Plugins](https://exchange.nagios.org/)
 
-```text
-folder1/
-└── folder2/
-    ├── folder3/
-    │   ├── file1
-    │   └── file2
-    └── folder4/
-        ├── file3
-        └── file4
+To identify the status of a monitored service, Nagios runs a check plugin on it. Nagios can tell what the status of the service is by reading the exit code of the check.
+
+Nagios understands the following exit codes:
+
+    0 - Service is OK.
+    1 - Service has a WARNING.
+    2 - Service is in a CRITICAL status.
+    3 - Service status is UNKNOWN.
+
+A program can be written in any language to work as a Nagios check plugin. Based on the condition checked, the plugin can make Nagios aware of a malfunctioning service.
+
+Consider the following script (check_warnings.sh):
+```shell
+#!/bin/bash
+
+countWarnings=$(/usr/local/nagios/bin/nagiostats | grep "Ok/Warn/Unk/Crit:" | sed 's/[[:space:]]//g' | cut -d"/" -f5)
+
+if (($countWarnings<=5)); then
+                echo "OK - $countWarnings services in Warning state"
+                exit 0
+        elif ((6<=$countWarnings && $countWarnings<=30)); then
+				# This case makes no sense because it only adds one warning.
+				# It is just to make an example on all possible exits.
+                echo "WARNING - $countWarnings services in Warning state"
+                exit 1
+        elif ((30<=$countWarnings)); then
+                echo "CRITICAL - $countWarnings services in Warning state"
+                exit 2
+        else
+                echo "UNKNOWN - $countWarnings"
+                exit 3
+fi
+```
+
+I will leave this script with all the other Nagios plugins inside /usr/local/nagios/libexec/ (This directory may be different depending on your confiugration).
+
+Like every Nagios plugin, you will want to check from the command line before adding it to the configuration files.
+
+Remember to allow the execution of the script:
+
+```shell
+sudo chmod +x /usr/local/nagios/libexec/check_warnings.sh
+```
+
+Set a New Checking Command and Service
+
+First you should define a command in the commands.cfg file. This file location depends on the configuration you've done, in my case it is in /usr/local/nagios/etc/objects/commands.cfg.
+
+So I will add at the end of the file the following block:
+```shell
+# Custom plugins commands...
+define command{
+	command_name check_warnings
+	command_line $USER1$/check_warnings.sh
+}
+```
+
+Remember that the $USER1$ variable, is a local Nagios variable set in the resource.cfg file, in my case pointing to /usr/local/nagios/libexec.
+
+After defining the command you can associate that command to a service, and then to a host. In this example we are going to define a service and assign it to localhost, because this check is on Nagios itself.
+
+Edit the /usr/local/nagios/etc/objects/localhost.cfg file and add the following block:
+
+```shell
+# Example - Check current warnings...
+define service{
+	use local-service
+	host_name localhost
+	service_description Nagios Server Warnings
+	check_command check_warnings
+}
+```
+Now we are all set, the only thing pending is reloading Nagios to read the configuration files again.
+
+Always remember, prior to reloading Nagios, check that there are no errors in the configuration. You do this with nagios -v command as root:
+
+```shell
+sudo /usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg
+```
+
+Ensure it returns 0 errors and 0 warnings and proceed to reload the service:
+
+```shell
+sudo systemctl reload-or-restart nagios.service
+```
+
+Set the NRPE Check on the Server Configuration Files
+
+Now we know that the custom plugin is working on the client and on the server, and that the NRPE is communicating correctly, we can go ahead and configure Nagios files for checking the remote device. So in the server set the files:
+
+/usr/local/nagios/etc/objects/commands.cfg:
+
+```shell
+#...
+define command{
+	command_name check_nrpe
+	command_line /usr/lib/nagios/plugins/check_nrpe -H $HOSTADDRESS$ -c $ARG1$
+}
+```
+
+/usr/local/nagios/etc/objects/nrpeclient.cfg:
+```shell
+define host{
+    use          linux-server
+    host_name    nrpeclient
+    alias        nrpeclient
+    address      192.168.0.200
+}
+
+define service{
+	use                 local-service
+	host_name           nrpeclient
+	service_description Root Home Usage
+	check_command       check_nrpe!check_root_home_du
+}
+```
+Note that the ! mark separates the command from the arguments in the check_command entry. This defines that check_nrpe is the command and check_root_home_du is the value of $ARG1$.
+
+Also, depending on your configuration you should add this last file to the main file (/usr/local/nagios/etc/nagios.cfg):
+```shell
+#...
+cfg_file=/usr/local/nagios/etc/objects/nrpeclient.cfg
+#...
+```
+Check the configuration and, if no errors or warnings, reload the service:
+
+/usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg
+```shell
+sudo systemctl reload-or-restart nagios.service
 ```
 
 ## Bugs and feature requests
