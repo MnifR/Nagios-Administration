@@ -106,6 +106,234 @@ Uncomment the 'cfg_dir' option that will be used for sotring all server hots con
 cfg_dir=/usr/local/nagios/etc/servers
 ```
 
+Edit the configuration file "resource.cfg" and define the path binary files of Nagios Monitoring Plugins
+
+```shell
+vim resource.cfg
+
+//Define the Nagios Monitoring Plugins path by changing the default configuration as below
+
+$USER1$=/usr/lib/nagios/plugins
+```
+
+Edit contacts configuration file
+
+```shell
+vim objects/contacts.cfg
+
+//Change the email address with your own.
+
+define contact{
+        ......
+        email             email@host.com
+}
+```
+Now define the nrpe check command by editing the configuration file "objects/commands.cfg"
+
+
+```shell
+vim objects/commands.cfg
+
+//Add the following configuration to the end of the line
+
+define command{
+        command_name check_nrpe
+        command_line $USER1$/check_nrpe -H $HOSTADDRESS$ -c $ARG1$
+}
+```
+
+Start the Nagios service and add it to the system boot
+
+```shell
+sudo systemctl start nagios
+sudo systemctl enable nagios
+sudo systemctl status nagios
+sudo systemctl restart apache2
+```
+
+Add Linux Host to Monitor
+
+Log in to the "Hostname" server using your ssh
+
+```shell
+ssh root@<ip-adress-client>
+sudo apt update
+sudo apt install nagios-nrpe-server monitoring-plugins
+```
+
+Next, go to the NRPE installation directory "/etc/nagios" and edit the configuration file "nrpe.cfg"
+
+```shell
+cd /etc/nagios/
+vim nrpe.cfg
+```
+
+Uncomment the "server_address" line and change the value with the "<ip-adress-client>"
+
+```shell
+server_address=<ip-adress-client>
+
+//One the "allowed_hosts" line, add the Nagios Server IP address "<ip-adress-server>"
+
+allowed_hosts=127.0.0.1,::1,<ip-adress-server>
+
+```
+
+Edit the "nrpe_local.cfg" configuration
+
+```shell
+vim nrpe_local.cfg
+
+Change the IP address with the "<ip-adress-client>", and paste the configuration into it
+
+command[check_root]=/usr/lib/nagios/plugins/check_disk -w 20% -c 10% -p /
+command[check_ping]=/usr/lib/nagios/plugins/check_ping -H <ip-adress-client> -w 100.0,20% -c 500.0,60% -p 5
+command[check_ssh]=/usr/lib/nagios/plugins/check_ssh -4 <ip-adress-client>
+command[check_http]=/usr/lib/nagios/plugins/check_http -I <ip-adress-client>
+command[check_apt]=/usr/lib/nagios/plugins/check_apt
+
+```
+
+Restart the NRPE service and add it to the system boot
+
+```shell
+
+systemctl restart nagios-nrpe-server
+systemctl enable nagios-nrpe-server
+systemctl status nagios-nrpe-server
+```
+
+
+Next, back to the Nagios Server and check the "client01" NRPE server.
+```shell
+/usr/lib/nagios/plugins/check_nrpe -H <ip-adress-client>
+/usr/lib/nagios/plugins/check_nrpe -H <ip-adress-client> -c check_ping
+
+```
+
+Add Hosts Configuration to the Nagios Server
+
+Back to the Nagios server terminal, go to the "/usr/local/nagios/etc" directory and create a new configuration "server/client01.cfg"
+
+```shell
+cd /usr/local/nagios/etc
+vim servers/client01.cfg
+
+```
+
+Change the IP address and the hostname with your own and paste the configuration into it.
+
+
+# Ubuntu Host configuration file1
+```shell
+define host {
+        use                          linux-server
+        host_name                    client01
+        alias                        Ubuntu Host
+        address                      <ip-adress-client>
+        register                     1
+}
+
+define service {
+      host_name                       client01
+      service_description             PING
+      check_command                   check_nrpe!check_ping
+      max_check_attempts              2
+      check_interval                  2
+      retry_interval                  2
+      check_period                    24x7
+      check_freshness                 1
+      contact_groups                  admins
+      notification_interval           2
+      notification_period             24x7
+      notifications_enabled           1
+      register                        1
+}
+
+define service {
+      host_name                       client01
+      service_description             Check Users
+      check_command                   check_nrpe!check_users
+      max_check_attempts              2
+      check_interval                  2
+      retry_interval                  2
+      check_period                    24x7
+      check_freshness                 1
+      contact_groups                  admins
+      notification_interval           2
+      notification_period             24x7
+      notifications_enabled           1
+      register                        1
+}
+
+define service {
+      host_name                       client01
+      service_description             Check SSH
+      check_command                   check_nrpe!check_ssh
+      max_check_attempts              2
+      check_interval                  2
+      retry_interval                  2
+      check_period                    24x7
+      check_freshness                 1
+      contact_groups                  admins
+      notification_interval           2
+      notification_period             24x7
+      notifications_enabled           1
+      register                        1
+}
+
+define service {
+      host_name                       client01
+      service_description             Check Root / Disk
+      check_command                   check_nrpe!check_root
+      max_check_attempts              2
+      check_interval                  2
+      retry_interval                  2
+      check_period                    24x7
+      check_freshness                 1
+      contact_groups                  admins
+      notification_interval           2
+      notification_period             24x7
+      notifications_enabled           1
+      register                        1
+}
+
+define service {
+      host_name                       client01
+      service_description             Check APT Update
+      check_command                   check_nrpe!check_apt
+      max_check_attempts              2
+      check_interval                  2
+      retry_interval                  2
+      check_period                    24x7
+      check_freshness                 1
+      contact_groups                  admins
+      notification_interval           2
+      notification_period             24x7
+      notifications_enabled           1
+      register                        1
+}
+
+define service {
+      host_name                       client01
+      service_description             Check HTTP
+      check_command                   check_nrpe!check_http
+      max_check_attempts              2
+      check_interval                  2
+      retry_interval                  2
+      check_period                    24x7
+      check_freshness                 1
+      contact_groups                  admins
+      notification_interval           2
+      notification_period             24x7
+      notifications_enabled           1
+      register                        1
+}
+```
+Now restart the Nagios Server
+```shell
+systemctl restart nagios
+```
 ## What's included
 
 Some text
