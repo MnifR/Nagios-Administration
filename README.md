@@ -14,20 +14,17 @@
 ## Table of contents
 
 - [What is Nagios](#What-is-Nagios)
-- [Install](#install)
-- [What's included](#whats-included)
-- [Bugs and feature requests](#bugs-and-feature-requests)
-- [Contributing](#contributing)
-- [Creators](#creators)
-- [Thanks](#thanks)
-- [Copyright and license](#copyright-and-license)
+- [Install-Nagios-Server](#Install-Nagios-Server)
+- [Install-Nagios-Client](#Install-Nagios-Client)
+- [Build-Your-Own-Plugins](#Build-Your-Own-Plugins)
+- [Disk-Usage-Monitoring-Plugin](#Disk-Usage-Monitoring-Plugin)
 
 
 ## What is Nagios
 
 Nagios is an open source continuous monitoring tool which monitors network, applications and servers. It can find and repair problems detected in the infrastructure, and stop future issues before they affect the end users. It gives the complete status of your IT infrastructure and its performance.
 
-## Install
+## Install-Nagios-Server
 
 Installation on ubnutu 20.04
 
@@ -150,6 +147,8 @@ sudo systemctl enable nagios
 sudo systemctl status nagios
 sudo systemctl restart apache2
 ```
+
+## Install-Nagios-Client
 
 Add Linux Host to Monitor
 
@@ -334,18 +333,26 @@ Now restart the Nagios Server
 ```shell
 systemctl restart nagios
 ```
-## Nagios-Plugins
+## Build-Your-Own-Plugins
 
 [Nagios-Plugins](https://exchange.nagios.org/)
 
-To identify the status of a monitored service, Nagios runs a check plugin on it. Nagios can tell what the status of the service is by reading the exit code of the check.
+Every Nagios plugin must return with a status code which is called return code. On the basis of return codes, Nagios core service takes decisions and appropriate action for the corresponding host or service.
 
-Nagios understands the following exit codes:
+Hosts:
 
-    0 - Service is OK.
-    1 - Service has a WARNING.
-    2 - Service is in a CRITICAL status.
-    3 - Service status is UNKNOWN.
+Return Code / Host status
+0 => UP
+1 => DOWN
+Other Maintains last known state
+
+Services:
+Return code / Service status
+0 => OK
+1 => WARNING
+2 => CRITICAL
+3 => UNKNOWN
+Other CRITICAL : unknown return code
 
 A program can be written in any language to work as a Nagios check plugin. Based on the condition checked, the plugin can make Nagios aware of a malfunctioning service.
 
@@ -469,17 +476,72 @@ Check the configuration and, if no errors or warnings, reload the service:
 sudo systemctl reload-or-restart nagios.service
 ```
 
-## Bugs and feature requests
+## Disk-Usage-Monitoring-Plugin
+```shell
+#!/bin/bash
 
-Have a bug or a feature request? Please first read the [issue guidelines](https://reponame/blob/master/CONTRIBUTING.md) and search for existing and closed issues. If your problem or idea is not addressed yet, [please open a new issue](https://reponame/issues/new).
+# get current used space percent
+used_space=`df -h / | grep -v Filesystem | awk '{print $5}' | sed 's/%//g'`
 
-## Contributing
+# set default warning and critical space usage
+warning_usage=70
+critical_usage=90
 
-Please read through our [contributing guidelines](https://reponame/blob/master/CONTRIBUTING.md). Included are directions for opening issues, coding standards, and notes on development.
+# get command options
+while getopts w:c: option
+do
+  case "${option}" in 
+    w)
+      warning_usage=${OPTARG} 
+    ;;
+    c)
+      critical_usage=${OPTARG} 
+    ;;
+  esac
+done
 
-Moreover, all HTML and CSS should conform to the [Code Guide](https://github.com/mdo/code-guide), maintained by [Main author](https://github.com/usernamemainauthor).
+# check OK status
+if (($used_space < $warning_usage && $used_space < $critical_usage)) 
+then echo "OK disk usage is $used_space%"
+    exit 0
+fi
 
-Editor preferences are available in the [editor config](https://reponame/blob/master/.editorconfig) for easy use in common text editors. Read more and download plugins at <https://editorconfig.org/>.
+# check warning status
+if (($used_space > $warning_usage && $used_space < $critical_usage)) 
+then
+    echo "WARNING disk usage is $used_space%"
+    exit 1
+fi
 
-## Creators
+# check critical status
+if (($used_space > $critical_usage )) 
+then
+    echo "CRITICAL disk usage is $used_space%"
+    exit 2
+fi
 
+# unknown exit
+exit 3
+```
+After that you should add new command to /etc/nagios/nrpe.cfg
+
+```shell
+command[custom_check_free_disk_space]=/usr/lib/nagios/plugins/custom_check_free_disk_space.sh -w 60 -c 80
+```
+```shell
+sudo systemctl restart nagios-nrpe-server
+```
+
+Add service on your monitoring server, /usr/local/nagios/etc/server/test.cfg
+
+```shell
+define service {
+        use                             generic-service
+        host_name                       test
+        service_description             Free space
+        check_command                   check_nrpe!custom_check_free_disk_space
+        notifications_enabled           1
+}
+```
+https://www.howtoforge.com/tutorial/how-to-install-nagios-on-ubuntu-2004/
+https://www.howtoforge.com/tutorial/write-a-custom-nagios-check-plugin/
