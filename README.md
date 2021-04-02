@@ -543,5 +543,7 @@ define service {
         notifications_enabled           1
 }
 ```
-https://www.howtoforge.com/tutorial/how-to-install-nagios-on-ubuntu-2004/
-https://www.howtoforge.com/tutorial/write-a-custom-nagios-check-plugin/
+
+[Source-1](https://www.howtoforge.com/tutorial/how-to-install-nagios-on-ubuntu-2004/)
+[Source-2](https://www.howtoforge.com/tutorial/write-a-custom-nagios-check-plugin/)
+
