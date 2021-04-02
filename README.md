@@ -544,6 +544,6 @@ define service {
 }
 ```
 
-[Source-1](https://www.howtoforge.com/tutorial/how-to-install-nagios-on-ubuntu-2004/)
+[Source-1](https://www.howtoforge.com/tutorial/how-to-install-nagios-on-ubuntu-2004/) <br>
 [Source-2](https://www.howtoforge.com/tutorial/write-a-custom-nagios-check-plugin/)
 
